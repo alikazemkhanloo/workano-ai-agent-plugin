@@ -1,0 +1,7 @@
+name: workano-ai-agent-plugin
+namespace: workano
+version: 1.0.0
+author: Workano Team
+display_name: Workano AI Agent Plugin
+description: This is a plugin for AI Agent
+homepage: https://workano.com
