@@ -12,7 +12,7 @@ class Plugin:
 
         # events
         bus_consumer = dependencies['bus_consumer']
-        ai_agent_bus_consumer_service = build_ai_agent_bus_consumer_service(ari)
+        ai_agent_bus_consumer_service = build_ai_agent_bus_consumer_service(ari.client)
         bus_event_handler = AIAgentBusEventHandler(ai_agent_bus_consumer_service)
 
         # # Subscribe to bus events
