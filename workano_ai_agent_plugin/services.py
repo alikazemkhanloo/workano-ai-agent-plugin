@@ -17,7 +17,7 @@ class AIAgentBusConsumerService():
         channel = self.ari.channels.get(channelId=call_id)
         request = {
             'app': f'wazo-app-{application_uuid}',
-            "external_host": 'my-ai-server:4000',
+            "external_host": '127.0.0.1:4000',
             "format":'slin16',
             "direction":'both'
 
