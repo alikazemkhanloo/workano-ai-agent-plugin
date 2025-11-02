@@ -27,6 +27,52 @@ logger = logging.getLogger("workano.ai_server")
 SAMPLE_RATE = 8000
 CHANNELS = 1
 
+
+def audioframe_to_pcm_bytes(frame):
+    """Convert an av.AudioFrame to PCM16 little-endian bytes.
+
+    Attempts multiple strategies for compatibility with different PyAV versions:
+    1. Use frame.to_ndarray() and convert to int16 PCM.
+    2. Fall back to taking the plane buffer as bytes.
+    """
+    # Prefer ndarray extraction
+    try:
+        arr = frame.to_ndarray()
+        arr = np.asarray(arr)
+
+        # Normalize shape -> (samples, channels) for interleaving
+        if arr.ndim == 1:
+            # mono
+            samples = arr
+        elif arr.ndim == 2:
+            # PyAV may return (channels, samples) or (samples, channels)
+            if arr.shape[0] <= 8 and arr.shape[0] > 1:
+                # assume (channels, samples)
+                channels, samples_count = arr.shape
+                samples = arr.T.reshape(-1)
+            else:
+                samples = arr.reshape(-1)
+        else:
+            samples = arr.flatten()
+
+        # Convert float -> int16, or cast integer types to int16
+        if np.issubdtype(samples.dtype, np.floating):
+            pcm = np.clip(samples * 32767.0, -32768, 32767).astype('<i2')
+        else:
+            pcm = samples.astype('<i2')
+
+        return pcm.tobytes()
+    except Exception:
+        # Fallback: try to read raw bytes from first plane
+        try:
+            plane = frame.planes[0]
+            # plane may support a buffer protocol
+            mv = memoryview(plane)
+            return mv.tobytes()
+        except Exception:
+            # Last resort: raise original error
+            raise
+
 class AsteriskAudioTrack(MediaStreamTrack):
     """
     This track feeds audio from Asterisk into OpenAI Realtime API
@@ -75,8 +121,8 @@ async def main():
             try:
                 frame = await track.recv()  # frame is an AudioFrame
                 logger.debug("forward_ai_audio received audio frame")
-                # Convert AudioFrame to PCM16 bytes
-                pcm_bytes = frame.planes[0].to_bytes()
+                # Convert AudioFrame to PCM16 bytes (robust across pyav versions)
+                pcm_bytes = audioframe_to_pcm_bytes(frame)
                 # Send to Asterisk via UDP (same port as externalMedia)
                 if asterisk_addr:
                     udp_sock.sendto(pcm_bytes, asterisk_addr)
@@ -134,8 +180,8 @@ async def main():
             try:
                 frame = await track.recv()
                 logger.debug("consume_ai_audio received audio frame")
-                # Convert AudioFrame to PCM16 bytes
-                pcm_bytes = frame.planes[0].to_bytes()
+                # Convert AudioFrame to PCM16 bytes (robust across pyav versions)
+                pcm_bytes = audioframe_to_pcm_bytes(frame)
                 sock_out.sendto(pcm_bytes, (UDP_IP, UDP_PORT))  # send back to Asterisk
                 logger.debug("Sent %d bytes of AI audio to %s:%d via separate socket", len(pcm_bytes), UDP_IP, UDP_PORT)
             except Exception as e:
