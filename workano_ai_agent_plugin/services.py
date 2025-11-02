@@ -9,7 +9,7 @@ class AIAgentBusConsumerService():
 
     def application_call_entered(self, event):
         print('call entered >>> event: ', event)
-        call_id = event.get('call_id')
+        call_id = event.get('call',{}).get('id')
         application_uuid = event.get('application_uuid')
         if application_uuid == '1ef1a021-0caa-477c-bc19-764cd65a8a87':
             channel = self.ari.channels.get(channelId=call_id)
