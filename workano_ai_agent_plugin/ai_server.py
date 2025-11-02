@@ -6,6 +6,7 @@ import logging
 from aiortc import RTCPeerConnection, MediaStreamTrack, RTCSessionDescription
 from aiortc.contrib.media import MediaBlackhole, MediaRecorder
 import aiohttp
+import json
 import numpy as np
 import soundfile as sf
 
@@ -151,15 +152,34 @@ async def main():
 
     # Use ephemeral token or standard API key
     async with aiohttp.ClientSession() as session:
-        headers = {"Authorization": f"Bearer {OPENAI_KEY}", "Content-Type": "application/sdp"}
-        logger.info("Sending SDP offer to OpenAI realtime endpoint")
-        async with session.post("https://api.openai.com/v1/realtime/calls", data=sdp, headers=headers) as resp:
+        headers = {"Authorization": f"Bearer {OPENAI_KEY}"}
+        url = "https://api.openai.com/v1/realtime/calls"
+
+        # Build session configuration as JSON per OpenAI example
+        session_config = {
+            "type": "realtime",
+            "model": OPENAI_MODEL,
+            "audio": {"output": {"voice": "marin"}},
+        }
+
+        logger.info("Sending SDP offer to OpenAI realtime endpoint (model=%s)", OPENAI_MODEL)
+
+        # Send multipart/form-data with fields 'sdp' and 'session' (JSON string)
+        form = aiohttp.FormData()
+        form.add_field("sdp", sdp)
+        form.add_field("session", json.dumps(session_config), content_type="application/json")
+
+        async with session.post(url, data=form, headers=headers) as resp:
             status = resp.status
             answer_sdp = await resp.text()
             logger.info("OpenAI realtime endpoint responded with status %s", status)
             if status != 200:
-                # The body will often contain an error page or JSON explaining the failure
-                logger.error("Failed to get SDP answer from OpenAI: status=%s body=%s", status, answer_sdp)
+                # Try to parse structured JSON error if present, otherwise log raw body
+                try:
+                    err = await resp.json()
+                except Exception:
+                    err = answer_sdp
+                logger.error("Failed to get SDP answer from OpenAI: status=%s body=%s", status, err)
                 raise RuntimeError(f"OpenAI realtime endpoint returned status {status}")
 
     # Only set remote description when we have a valid SDP answer (status 200)
