@@ -1,13 +1,10 @@
-
-from .dao import AIAgentDao
 import logging
 logger = logging.getLogger(__name__)
 
 
 
 class AIAgentBusConsumerService():
-    def __init__(self, dao, ari):
-        self.dao = dao
+    def __init__(self, ari):
         self.ari = ari
 
     def application_call_entered(self, event):
@@ -27,6 +24,5 @@ class AIAgentBusConsumerService():
 
 
 def build_ai_agent_bus_consumer_service(ari):
-    dao = AIAgentDao()
-    return AIAgentBusConsumerService(dao, ari,)
+    return AIAgentBusConsumerService(ari)
 
