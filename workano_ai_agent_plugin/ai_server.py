@@ -91,7 +91,10 @@ async def main():
         logger.info("Starting udp_listener task to receive RTP from Asterisk")
         while True:
             try:
-                data, addr = await asyncio.get_event_loop().sock_recv(sock, 2048)
+                # asyncio.get_event_loop().sock_recv returns bytes only (no address).
+                # Use blocking recvfrom in a threadpool so we get (data, addr).
+                loop = asyncio.get_event_loop()
+                data, addr = await loop.run_in_executor(None, sock.recvfrom, 2048)
                 if asterisk_addr is None:
                     asterisk_addr = addr  # remember where RTP is coming from
                     logger.info("Asterisk RTP address detected: %s", asterisk_addr)
@@ -154,7 +157,12 @@ async def main():
             status = resp.status
             answer_sdp = await resp.text()
             logger.info("OpenAI realtime endpoint responded with status %s", status)
+            if status != 200:
+                # The body will often contain an error page or JSON explaining the failure
+                logger.error("Failed to get SDP answer from OpenAI: status=%s body=%s", status, answer_sdp)
+                raise RuntimeError(f"OpenAI realtime endpoint returned status {status}")
 
+    # Only set remote description when we have a valid SDP answer (status 200)
     await pc.setRemoteDescription(RTCSessionDescription(sdp=answer_sdp, type="answer"))
     logger.info("Set remote description from OpenAI answer")
 

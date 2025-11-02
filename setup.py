@@ -19,6 +19,9 @@ setup(
     entry_points={
         'wazo_calld.plugins': [
             'workano_ai_agent_plugin = workano_ai_agent_plugin.plugin:Plugin'
-        ]
+        ],
+        'console_scripts': [
+            'workano-ai-server = workano_ai_agent_plugin.cli:main'
+        ],
     }
 )
